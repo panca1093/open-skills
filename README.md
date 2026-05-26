@@ -4,13 +4,41 @@ A spec-driven development pipeline as a custom slash command for AI coding tools
 
 Inspired by Kuroko no Basket — entering the Zone is peak performance state where everything flows.
 
+## What is spec-driven development?
+
+Most AI-assisted coding starts from a vague prompt and jumps straight to implementation. The AI writes code, you review it, realize the scope was wrong, and iterate. The output drives the thinking.
+
+Spec-driven development inverts this. Before any code is written, you and the AI align on:
+
+- **What problem is actually being solved** (brief)
+- **Exactly what will be built and what won't** (spec)
+- **What the concrete test cases are** (plan)
+
+Only then does implementation begin — and it's constrained by the spec, not improvised from it.
+
+The payoff: the AI implements exactly what was agreed, tests prove the spec was met, and the PR description writes itself from the artifacts already produced.
+
 ## Pipeline
 
 ```
-/zone  →  brief  →  spec  →  plan  →  implement (TDD loop)  →  review  →  test  →  ship
+brief → spec → plan → implement → review → test → ship
 ```
 
-Each step advances automatically. State is tracked in `.zone/manifest.json` at the repo root. Re-run `/zone` after each step to continue.
+| Step | What happens | Artifact |
+|---|---|---|
+| **brief** | Clarifying Q&A — surfaces edge cases, constraints, affected files | `.zone/brief.md` |
+| **spec** | Formal write-up: problem, solution, scope, API changes, acceptance criteria | `.zone/spec.md` |
+| **plan** | Breaks spec into ordered TDD tasks, each with concrete test scenarios | manifest `tasks[]` |
+| **implement** | TDD loop per task: write failing tests → implement → refactor → repeat | source + test files |
+| **review** | Self-review against spec ACs, layering rules, security, concurrency | pass / block list |
+| **test** | Full test suite run with `-race` and `-shuffle` (Go) or equivalent | green / failing |
+| **ship** | Branch + commit + PR, Notion tasks marked done, spec page updated with PR link | PR URL |
+
+State is tracked in `.zone/manifest.json` at the repo root. Re-run `/zone` after each step to continue. If a step fails (review blocked, tests red), Zone sets the status back to `implement` and waits — it never skips forward on a broken state.
+
+### Why not just prompt the AI directly?
+
+A single prompt produces a single pass. Zone enforces a deliberate gate at each step: you review the spec before any code is written, you see the task breakdown before the TDD loop starts, and the review step can send execution back to implement if something is wrong. Each gate is a cheap place to catch a misunderstanding before it compounds.
 
 ## Prerequisites
 
