@@ -47,7 +47,7 @@ Zone is a Claude Code plugin, distributed via the `open-skills` marketplace host
 ### From this repo (GitHub)
 
 ```
-/plugin marketplace add panca1093/zone-skill
+/plugin marketplace add panca1093/open-skills
 /plugin install zone@open-skills
 ```
 
@@ -56,12 +56,12 @@ Zone is a Claude Code plugin, distributed via the `open-skills` marketplace host
 ### From a local clone (dev install)
 
 ```bash
-git clone git@github.com:panca1093/zone-skill.git
+git clone git@github.com:panca1093/open-skills.git
 ```
 
 Then in Claude Code, add the local checkout as a marketplace and install:
 ```
-/plugin marketplace add /absolute/path/to/zone-skill
+/plugin marketplace add /absolute/path/to/open-skills
 /plugin install zone@open-skills
 ```
 
@@ -158,7 +158,7 @@ The review phase optionally prompts you to escalate to Opus for higher-stakes di
 This repo is a single-plugin marketplace. The marketplace manifest sits at the root; the actual plugin lives under `plugins/zone/`.
 
 ```
-zone-skill/                              # repo root (the open-skills marketplace)
+open-skills/                             # repo root = the "open-skills" marketplace
 ├── .claude-plugin/
 │   └── marketplace.json                 # marketplace manifest (name: "open-skills")
 ├── plugins/
