@@ -1,6 +1,6 @@
 {
   "name": "zone",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Spec-driven development pipeline — /zone takes an idea from brief to shipped PR autonomously. Seven phases: brief, spec, plan, implement, review, test, ship.",
   "author": {
     "name": "Saifullah Panca",

@@ -1,0 +1,17 @@
+{
+  "name": "open-skills",
+  "owner": {
+    "name": "Saifullah Panca",
+    "url": "https://github.com/panca1093"
+  },
+  "metadata": {
+    "description": "Open skills marketplace by Saifullah Panca — currently hosts the zone spec-driven development pipeline. More plugins to come."
+  },
+  "plugins": [
+    {
+      "name": "zone",
+      "source": "./plugins/zone",
+      "description": "Spec-driven development pipeline — /zone takes an idea from brief to shipped PR autonomously. Seven phases: brief, spec, plan, implement, review, test, ship."
+    }
+  ]
+}

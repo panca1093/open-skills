@@ -42,14 +42,16 @@ A single prompt produces a single pass. Zone enforces a deliberate gate at each 
 
 ## Install
 
-Zone is a Claude Code plugin.
+Zone is a Claude Code plugin, distributed via the `open-skills` marketplace hosted in this repo.
 
 ### From this repo (GitHub)
 
 ```
 /plugin marketplace add panca1093/zone-skill
-/plugin install zone
+/plugin install zone@open-skills
 ```
+
+(The marketplace name is `open-skills`; the plugin name is `zone`.)
 
 ### From a local clone (dev install)
 
@@ -57,9 +59,10 @@ Zone is a Claude Code plugin.
 git clone git@github.com:panca1093/zone-skill.git
 ```
 
-Then in Claude Code:
+Then in Claude Code, add the local checkout as a marketplace and install:
 ```
-/plugin install /absolute/path/to/zone-skill
+/plugin marketplace add /absolute/path/to/zone-skill
+/plugin install zone@open-skills
 ```
 
 After install:
@@ -152,22 +155,30 @@ The review phase optionally prompts you to escalate to Opus for higher-stakes di
 
 ## Layout
 
+This repo is a single-plugin marketplace. The marketplace manifest sits at the root; the actual plugin lives under `plugins/zone/`.
+
 ```
-zone-skill/
+zone-skill/                              # repo root (the open-skills marketplace)
 ├── .claude-plugin/
-│   └── plugin.json
-├── skills/
-│   ├── zone/SKILL.md         # /zone (orchestrator)
-│   ├── setup/SKILL.md        # /zone:setup
-│   ├── brief/SKILL.md
-│   ├── spec/SKILL.md
-│   ├── plan/SKILL.md
-│   ├── implement/SKILL.md
-│   ├── review/SKILL.md
-│   ├── test/SKILL.md
-│   └── ship/SKILL.md
+│   └── marketplace.json                 # marketplace manifest (name: "open-skills")
+├── plugins/
+│   └── zone/                            # the zone plugin
+│       ├── .claude-plugin/
+│       │   └── plugin.json              # plugin manifest (name: "zone")
+│       └── skills/
+│           ├── zone/SKILL.md            # /zone (orchestrator)
+│           ├── setup/SKILL.md           # /zone:setup
+│           ├── brief/SKILL.md
+│           ├── spec/SKILL.md
+│           ├── plan/SKILL.md
+│           ├── implement/SKILL.md
+│           ├── review/SKILL.md
+│           ├── test/SKILL.md
+│           └── ship/SKILL.md
 └── README.md
 ```
+
+Future plugins added to this marketplace go under `plugins/<plugin-name>/` and get listed in `.claude-plugin/marketplace.json`.
 
 ## License
 
