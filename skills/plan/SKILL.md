@@ -1,3 +1,9 @@
+---
+name: plan
+description: Zone pipeline phase 3 — breaks the spec into 3–8 ordered TDD tasks, each with concrete test cases and best-guess files to touch. Optionally creates Notion task rows linked to the spec page. Invoked by /zone when manifest.status="plan". Advances to "implement".
+allowed-tools: [Read, Write, Edit, Bash]
+---
+
 # /zone:plan — Plan Phase
 
 Read `.zone/manifest.json`, `.zone/brief.md`, `.zone/spec.md`.
@@ -24,7 +30,7 @@ Aim for 3–8 tasks. One task is fine if the work is trivial.
 
 If `manifest.notion.enabled` is true:
 
-For each task, create a row in the Notion DB at `manifest.notion.db_id` using `notion-create-pages`.
+For each task, create a row in the Notion DB at `manifest.notion.db_id` using `mcp__claude_ai_Notion__notion-create-pages` with `parent.type = "data_source_id"`.
 
 Set fields:
 - `Task` = title

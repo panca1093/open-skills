@@ -1,6 +1,26 @@
+---
+name: test
+description: Zone pipeline phase 6 — runs the full test suite with race + shuffle (Go) or equivalent. Detects project type; auto-corrects broken GOROOT for Go. Refuses to silently pass when no test suite exists (asks user). Invoked by /zone when manifest.status="test". Failure routes back to "implement"; green advances to "ship".
+allowed-tools: [Read, Bash]
+---
+
 # /zone:test — Test Phase
 
 Read `.zone/manifest.json`.
+
+---
+
+## GOROOT auto-correction (Go projects)
+
+If the project is Go (`go.mod` present), apply this guard before invoking `go`:
+
+```bash
+if [ -z "$GOROOT" ] || [ ! -x "$GOROOT/bin/go" ]; then
+  if [ -d /opt/homebrew/Cellar/go ]; then
+    export GOROOT="$(ls -d /opt/homebrew/Cellar/go/*/libexec 2>/dev/null | sort -V | tail -n1)"
+  fi
+fi
+```
 
 ---
 

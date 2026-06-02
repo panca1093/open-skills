@@ -1,3 +1,9 @@
+---
+name: spec
+description: Zone pipeline phase 2 — writes the formal spec (.zone/spec.md) from the brief, optionally pushes it to Notion under the configured parent page. Invoked by /zone when manifest.status="spec". Advances to "plan" on success.
+allowed-tools: [Read, Write, Edit, Bash]
+---
+
 # /zone:spec — Spec Phase
 
 Read `.zone/manifest.json` and `.zone/brief.md`.
@@ -54,7 +60,9 @@ Create a Notion page with the spec content under `manifest.notion.spec_parent`.
 
 Page title: `Spec: <ticket_id or project> — <title>`
 
-Use `notion-create-pages` to create it under `manifest.notion.spec_parent`.
+Use `mcp__claude_ai_Notion__notion-create-pages` with:
+- `parent`: `{"type": "page_id", "page_id": "<manifest.notion.spec_parent>"}`
+- `pages`: array with one page object having `properties.title` and `content` (spec body)
 
 After creating, record the returned Notion page ID in `manifest.notion.spec_page_id`.
 

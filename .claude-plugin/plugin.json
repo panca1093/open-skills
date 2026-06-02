@@ -1,0 +1,11 @@
+{
+  "name": "zone",
+  "version": "1.2.0",
+  "description": "Spec-driven development pipeline — /zone takes an idea from brief to shipped PR autonomously. Seven phases: brief, spec, plan, implement, review, test, ship.",
+  "author": {
+    "name": "Saifullah Panca",
+    "url": "https://github.com/panca1093"
+  },
+  "homepage": "https://github.com/panca1093/zone-skill",
+  "license": "MIT"
+}
