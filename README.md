@@ -155,26 +155,32 @@ The review phase optionally prompts you to escalate to Opus for higher-stakes di
 
 ## Layout
 
-This repo is a single-plugin marketplace. The marketplace manifest sits at the root; the actual plugin lives under `plugins/zone/`.
+The marketplace manifest sits at the root; each plugin lives under `plugins/<name>/`. This README documents the stable `zone` (v1) plugin; `zone-v2` is the merged single-file successor — same seven phases collapsed into one skill, Notion opt-in (`--notion`), state in `.zone-v2/`, runnable side by side with v1.
 
 ```
 open-skills/                             # repo root = the "open-skills" marketplace
 ├── .claude-plugin/
 │   └── marketplace.json                 # marketplace manifest (name: "open-skills")
 ├── plugins/
-│   └── zone/                            # the zone plugin
+│   ├── zone/                            # the zone plugin (v1, stable)
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json              # plugin manifest (name: "zone")
+│   │   └── skills/
+│   │       ├── zone/SKILL.md            # /zone (orchestrator)
+│   │       ├── setup/SKILL.md           # /zone:setup
+│   │       ├── brief/SKILL.md
+│   │       ├── spec/SKILL.md
+│   │       ├── plan/SKILL.md
+│   │       ├── implement/SKILL.md
+│   │       ├── review/SKILL.md
+│   │       ├── test/SKILL.md
+│   │       └── ship/SKILL.md
+│   └── zone-v2/                         # merged single-file successor
 │       ├── .claude-plugin/
-│       │   └── plugin.json              # plugin manifest (name: "zone")
+│       │   └── plugin.json              # plugin manifest (name: "zone-v2")
 │       └── skills/
-│           ├── zone/SKILL.md            # /zone (orchestrator)
-│           ├── setup/SKILL.md           # /zone:setup
-│           ├── brief/SKILL.md
-│           ├── spec/SKILL.md
-│           ├── plan/SKILL.md
-│           ├── implement/SKILL.md
-│           ├── review/SKILL.md
-│           ├── test/SKILL.md
-│           └── ship/SKILL.md
+│           ├── zone-v2/SKILL.md         # /zone-v2 (orchestrator + 7 inline phases)
+│           └── setup/SKILL.md           # /zone-v2:setup
 └── README.md
 ```
 

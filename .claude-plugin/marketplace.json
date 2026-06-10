@@ -5,13 +5,18 @@
     "url": "https://github.com/panca1093"
   },
   "metadata": {
-    "description": "Open skills marketplace by Saifullah Panca — currently hosts the zone spec-driven development pipeline. More plugins to come."
+    "description": "Open skills marketplace by Saifullah Panca — hosts the zone spec-driven development pipeline (v1 multi-file stable, v2 merged single-file). More plugins to come."
   },
   "plugins": [
     {
       "name": "zone",
       "source": "./plugins/zone",
       "description": "Spec-driven development pipeline — /zone takes an idea from brief to shipped PR autonomously. Seven phases: brief, spec, plan, implement, review, test, ship."
+    },
+    {
+      "name": "zone-v2",
+      "source": "./plugins/zone-v2",
+      "description": "Spec-driven development pipeline (single-file) — /zone-v2 is the merged successor to zone v1: all seven phases in one skill, Notion opt-in (--notion), state in .zone-v2/. Runs side by side with v1."
     }
   ]
 }

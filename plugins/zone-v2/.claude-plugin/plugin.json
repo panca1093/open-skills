@@ -1,0 +1,11 @@
+{
+  "name": "zone-v2",
+  "version": "2.0.0",
+  "description": "Spec-driven development pipeline (single-file) — /zone-v2 takes an idea from brief to shipped PR autonomously. Merged successor to zone v1: seven phases (brief, spec, plan, implement, review, test, ship) in one skill, Notion opt-in, state in .zone-v2/.",
+  "author": {
+    "name": "Saifullah Panca",
+    "url": "https://github.com/panca1093"
+  },
+  "homepage": "https://github.com/panca1093/open-skills",
+  "license": "MIT"
+}
