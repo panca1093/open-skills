@@ -76,6 +76,20 @@ Then prompt for wiki path (separate AskUserQuestion):
 **Wiki path**
 "Where is your local wiki for ship-phase updates? Default: `~/Documents/MyBook/wiki`. Enter a path or pick Default."
 
+Then prompt for model configuration (separate AskUserQuestion per player):
+
+**Model configuration** — ask free-text for each player. Use the model ID your LLM provider requires (e.g. `claude-sonnet-4-5`, `gpt-4o`, `gemini-1.5-pro`). Each player's model is stored independently so you can mix providers or tiers.
+
+Ask six questions (one AskUserQuestion each, free-text):
+1. **pg** — spec + plan (runs once; use a capable reasoning model)
+2. **sf** — implement loop (runs most frequently; consider a faster/cheaper model)
+3. **sf_escalate** — implement on retry (used when sf retries≥2 or fix is architectural; use a stronger model than sf)
+4. **center** — review
+5. **pf** — test
+6. **sg** — ship
+
+Prefill from existing config if present. Store whatever the user types — no validation.
+
 ## 6. Write config file
 
 Write `$CONFIG_PATH` with the following structure:
@@ -89,7 +103,15 @@ Write `$CONFIG_PATH` with the following structure:
     "work_parent_id": "<answer 3 or empty>",
     "personal_parent_id": "<answer 4 or empty>"
   },
-  "wiki_path": "<wiki path answer or default>"
+  "wiki_path": "<wiki path answer or default>",
+  "models": {
+    "pg": "<model-id>",
+    "sf": "<model-id>",
+    "sf_escalate": "<model-id>",
+    "center": "<model-id>",
+    "pf": "<model-id>",
+    "sg": "<model-id>"
+  }
 }
 ```
 
@@ -163,5 +185,7 @@ Wiki path:    <wiki_path>
 Allowlist:    <N> rules + GOROOT env → <project>/.claude/settings.local.json
               (safe dev commands auto-allowed; push/PR/rm/sudo still prompt)
 
-Run `/zone-v2 TICKET-XXX` (Jira) or `/zone-v2` (Scratch) to start.
+Models:       pg=<pg> sf=<sf> sf_escalate=<sf_escalate> center=<center> pf=<pf> sg=<sg>
+
+Run `/zone-v2:orchestrator TICKET-XXX` (Jira) or `/zone-v2:orchestrator` (Scratch) to start.
 ```

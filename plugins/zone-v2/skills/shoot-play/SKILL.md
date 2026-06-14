@@ -1,82 +1,61 @@
 ---
 name: shoot-play
-description: Zone-v2 phase 3 — mini-review sanity check (Center, light scope) then ship (SG). Reads .claude/zone-v2/manifest.json; requires status="ship". Ends with manifest.status="done". Triggers when the user runs /zone-v2:shoot-play or when the orchestrator advances past 3o3-play.
+description: Zone-v2 phase 3 — mini-review sanity check (Center, light scope) then ship (SG). Reads .claude/zone-v2/manifest.json; requires status="ship". Ends with manifest.status="done". Run after /zone-v2:3o3-play.
 argument-hint: ""
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Agent]
 ---
 
-# /zone-v2:shoot-play — Mini-Review & Ship
+## 0. Load models from config
 
-Phase 3 of the zone-v2 pipeline. A light Center pass confirms nothing was missed before SG pushes, opens the PR, and closes the loop.
-
----
+```bash
+CONFIG_PATH="$HOME/.claude/plugins/data/zone-v2/config.json"
+M_CENTER=$(jq -r '.models.center // empty' "$CONFIG_PATH" 2>/dev/null)
+M_SG=$(jq -r '.models.sg // empty' "$CONFIG_PATH" 2>/dev/null)
+```
+If any required var is empty → stop: "Player models not configured. Run /zone-v2:setup first."
 
 ## 1. Load manifest
 
 Read `.claude/zone-v2/manifest.json`.
+- No manifest → stop: "Run /zone-v2:coach-brief first."
+- `status` in {`brief`,`spec`} → stop: "Run /zone-v2:coach-brief first."
+- `status` in {`implement`,`review`,`test`} → stop: "Run /zone-v2:3o3-play first."
+- `status="done"` → stop: "Pipeline done."
 
-- **No manifest** → stop: "No pipeline state found. Run /zone-v2:coach-brief first."
-- **status ≠ `ship`** → stop:
-  - status in {`brief`, `spec`}: "Run /zone-v2:coach-brief first."
-  - status in {`implement`, `review`, `test`}: "Run /zone-v2:3o3-play first."
-  - status = `done`: "Pipeline is already done."
+Verify `test_result.json` exists with `status="PASSED"`. If not → stop: "test_result not PASSED — run /zone-v2:3o3-play to fix tests first."
 
-Also verify `test_result.json` exists with `status="PASSED"`. If not:
-```
-test_result.json is missing or not PASSED — refusing to ship.
-Run /zone-v2:3o3-play to fix tests first.
-```
+## 2. Mini-review — Center (light scope)
 
----
-
-## 2. Mini-review — dispatch Center (light scope)
-
-This is a fast pre-ship sanity check, not a full spec walkthrough. Read `players/center.md` and dispatch Center with a constrained brief:
-
-- `subagent_type: "general-purpose"`, `model: "sonnet"`, `description: "zone-v2 shoot-play — mini-review"`
-- Tell Center: **light scope only** — verify these three things:
-  1. All `manifest.tasks` entries have `status="done"`.
+Read `players/center.md`. Dispatch Center with constrained scope:
+- `subagent_type: "general-purpose"`, `model: M_CENTER`, `description: "zone-v2 shoot-play — mini-review"`
+- Tell Center: **light scope only** — verify three things:
+  1. All `manifest.tasks` have `status="done"`.
   2. `test_result.json` is `PASSED` with no unresolved `is_impl_bug`.
-  3. The top 3 functional requirements from `spec.md` are present in the diff (`git diff main...HEAD`).
-  - If all three clear → `APPROVED`. Do NOT do a full spec walkthrough.
-  - If any fail → `CHANGES_NEEDED` with only the specific finding.
+  3. Top 3 functional requirements from `spec.md` are present in diff (`git diff main...HEAD`).
+  - All clear → `APPROVED`. Do NOT do a full spec walkthrough.
+  - Any fail → `CHANGES_NEEDED` with only the specific finding.
 
-Center writes `.claude/zone-v2/review_result.json` (overwrites; previous review was preserved as `review_prev.json` by 3o3-play).
+Center writes `review_result.json`.
 
-After Center returns:
-- `APPROVED` → continue to step 3.
-- `CHANGES_NEEDED` → STOP:
-  ```
-  Mini-review flagged an issue before shipping:
-  <Center's finding>
-  Fix it and re-run /zone-v2:shoot-play, or run /zone-v2:3o3-play if it needs a full fix cycle.
-  ```
+- `APPROVED` → continue.
+- `CHANGES_NEEDED` → stop: "Mini-review flagged: <finding>. Fix then re-run /zone-v2:shoot-play, or run /zone-v2:3o3-play for a full fix cycle."
 
----
+## 3. Ship — SG (`M_SG`)
 
-## 3. Ship — dispatch SG (`sonnet`)
-
-Read `players/sg.md` and dispatch SG:
-- `subagent_type: "general-purpose"`, `model: "sonnet"`, `description: "zone-v2 shoot-play — SG ship"`
+Read `players/sg.md`. Dispatch:
+- `subagent_type: "general-purpose"`, `model: M_SG`, `description: "zone-v2 shoot-play — SG"`
 - Read before acting: `manifest.json`, `spec.md`, `brief.md`, `test_result.json`.
-- The branch already exists (`manifest.branch`); SF committed each task to it. SG must not create a new branch.
+- Branch exists (`manifest.branch`); SF committed each task. SG must not create a new branch.
 
-SG pushes the branch, commits any leftover uncommitted files (no `git add -A`; skip if tree is clean), opens the PR with `gh pr create`, syncs Notion spec page if `notion.enabled`. Returns branch + PR URL.
+SG: commit leftovers (no `git add -A`; skip if clean), `git push -u origin <branch>`, `gh pr create`, sync Notion spec page if enabled. Returns branch + PR URL.
 
-After SG returns:
-1. Set `manifest.branch`, `manifest.pr_url` from SG's summary.
-2. Update the local wiki at `manifest.wiki_path` (Jira → `tickets/<ticket_id>.md`; Scratch → `personal/<project>.md`), plus `index.md` and `log.md`; sync to Notion if enabled.
-3. Set `manifest.status = "done"`, write manifest.
-
----
-
-## 4. Completion
+After SG: set `manifest.branch`, `manifest.pr_url`. Update wiki (`tickets/<id>.md` or `personal/<project>.md` + `index.md` + `log.md`); sync Notion if enabled. Set `status="done"`, write manifest.
 
 ```
 Zone complete. You're in the zone.
 
-PR:     <manifest.pr_url or commit hash>
-Branch: <manifest.branch>
-Spec:   <https://www.notion.so/<spec_page_id no-dashes> — omit if Notion disabled>
-Wiki:   <manifest.wiki_path>/...
+PR:     <pr_url or commit hash>
+Branch: <branch>
+Spec:   <notion url — omit if disabled>
+Wiki:   <wiki_path>/...
 ```

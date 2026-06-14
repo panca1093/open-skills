@@ -1,94 +1,57 @@
 ---
 name: orchestrator
-description: Spec-driven development pipeline (subagent-driven). Use when the user types /zone-v2:orchestrator, asks to "run zone-v2", or wants an autonomous brief→spec→plan→implement→review→test→ship flow where each phase runs as a dispatched agent ("player"). One orchestrator skill defines who runs each phase; player personas live in players/. State flows through .claude/zone-v2/ files. Reads/writes .claude/zone-v2/manifest.json.
+description: Spec-driven development pipeline (subagent-driven). Use when the user types /zone-v2:orchestrator, asks to "run zone-v2", or wants an autonomous brief→spec→plan→implement→review→test→ship flow where each phase runs as a dispatched agent ("player"). Player personas live in players/. State flows through .claude/zone-v2/ files. Reads/writes .claude/zone-v2/manifest.json.
 argument-hint: "[TICKET-ID] [--notion] [--interactive]"
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Agent]
 ---
 
-# /zone-v2:orchestrator — Subagent-Driven Development Pipeline
-
-One command, seven phases, autonomous by default. Each phase runs as a player on the court. The orchestrator (this file, running in the main session) drives the loop; every phase except `brief` is a **dispatched Agent** carrying that phase's persona. State flows through `.claude/zone-v2/` files only — subagents cold-start and never share memory.
-
-Name inspired by Kuroko's Basketball — entering the Zone is peak performance, and each phase is a position on the court: coach, point guard, small forward, center, power forward, shooting guard.
-
-## Model tiers
-
-| Player | Phase | Model | Notes |
-|--------|-------|-------|-------|
-| coach | brief | (inline, current session) | interviews the user — cannot be a subagent |
-| pg | spec + plan | `sonnet` | reasoning-heavy, runs once |
-| sf | implement | `haiku` (fixes stay `haiku`; → `sonnet` only on 2nd+ retry of the same finding, or an explicitly architectural fix) | the loop hammers this — keep it cheap |
-| center | review | `sonnet` first pass → `sonnet` re-review | scoped re-reviews after a fix run |
-| pf | test | `sonnet` | |
-| sg | ship | `sonnet` | |
-
-Dispatched phases use `subagent_type: "general-purpose"` with the `model` above. Persona `permissions` (read-only, etc.) are advisory — enforced by the persona prompt, not a hard sandbox.
-
----
-
 ## Arguments
 
-`$ARGUMENTS` can be:
-- A Jira ticket ID matching `[A-Z]+-\d+` (e.g. `LOAN-1234`) → **Jira path**
-- Empty → **Scratch path** (personal/side project)
-- `--notion` — opt in to Notion sync (off by default; requires configured IDs)
-- `--interactive` — stop after each phase; user re-runs `/zone-v2:orchestrator` to continue (default: autonomous)
-
----
+- `[A-Z]+-\d+` → Jira path (`mode=jira`, `ticket_id=match`)
+- (empty) → Scratch path (`mode=scratch`, `ticket_id=null`)
+- `--notion` — enable Notion sync (requires configured IDs)
+- `--interactive` — pause after each phase; re-run `/zone-v2:orchestrator` to continue
 
 ## 1. Determine mode and flags
 
-Strip `--notion` → `notion_flag = true` if found, else `false`.
-Strip `--interactive` → `interactive = true` if found, else `false`.
-
-- If remaining argument matches `[A-Z]+-\d+` → `mode = "jira"`, `ticket_id = match`
-- Otherwise → `mode = "scratch"`, `ticket_id = null`
-
----
+Strip `--notion` → `notion_flag`. Strip `--interactive` → `interactive`. Match remaining for ticket ID.
 
 ## 2. Check session state
 
-Look for `.claude/zone-v2/manifest.json` in the current working directory.
+Read `.claude/zone-v2/manifest.json` if present → resume from `manifest.status`, skip to step 4. If not → step 3.
 
-**If it exists:** read it, resume from `manifest.status`, skip to step 4.
-**If not:** continue to step 3.
-
----
-
-## 3. Initialize new session
-
-### 3a. Load plugin config (optional)
+## 3. Initialize
 
 ```bash
 CONFIG_PATH="$HOME/.claude/plugins/data/zone-v2/config.json"
 [ -f "$CONFIG_PATH" ] && cat "$CONFIG_PATH" || echo "MISSING"
 ```
 
-Missing config is fine — proceed with Notion disabled and the default wiki path. Only mention `/zone-v2:setup` if the user passed `--notion`.
-
-### 3b. Derive Notion config
-
-`notion_enabled = notion_flag AND (config.notion.work_db_id OR config.notion.personal_db_id non-empty)`.
-- If enabled: `db_id` = work_db_id (jira) or personal_db_id (scratch); `spec_parent` = work_parent_id (jira) or personal_parent_id (scratch).
-- Else: `db_id = null`, `spec_parent = null`.
-
-If `notion_flag` but no IDs for the mode:
+**Models** (required — run `/zone-v2:setup` to configure):
+```bash
+M_PG=$(jq -r '.models.pg // empty' "$CONFIG_PATH" 2>/dev/null)
+M_SF=$(jq -r '.models.sf // empty' "$CONFIG_PATH" 2>/dev/null)
+M_SF_ESCALATE=$(jq -r '.models.sf_escalate // empty' "$CONFIG_PATH" 2>/dev/null)
+M_CENTER=$(jq -r '.models.center // empty' "$CONFIG_PATH" 2>/dev/null)
+M_PF=$(jq -r '.models.pf // empty' "$CONFIG_PATH" 2>/dev/null)
+M_SG=$(jq -r '.models.sg // empty' "$CONFIG_PATH" 2>/dev/null)
+[ -z "$M_SF_ESCALATE" ] && M_SF_ESCALATE="$M_CENTER"
 ```
---notion requested but no <work|personal> Notion IDs configured. Run /zone-v2:setup, or drop --notion.
-```
+If any required var is empty → stop: "Player models not configured. Run /zone-v2:setup first."
 
-### 3c. Determine wiki path
+SF escalation: use `M_SF_ESCALATE` when `retries≥2` or fix is architectural.
 
+**Notion:** `notion_enabled = notion_flag AND work/personal db_id non-empty`. If flag set but no IDs: tell user to run `/zone-v2:setup` or drop `--notion`.
+- Enabled: `db_id` = work_db_id (jira) / personal_db_id (scratch); `spec_parent` = matching parent ID.
+- Disabled: both null.
+
+**Wiki path:**
 ```bash
 WIKI_PATH=$(jq -r '.wiki_path // "~/Documents/MyBook/wiki"' "$CONFIG_PATH" 2>/dev/null | sed "s|^~|$HOME|")
 [ -z "$WIKI_PATH" ] || [ "$WIKI_PATH" = "null" ] && WIKI_PATH="$HOME/Documents/MyBook/wiki"
-echo "$WIKI_PATH"
 ```
 
-### 3d. Write manifest
-
-Create `.claude/zone-v2/` and write `.claude/zone-v2/manifest.json`:
-
+**Write manifest** (`.claude/zone-v2/manifest.json`):
 ```json
 {
   "mode": "<jira|scratch>",
@@ -96,13 +59,8 @@ Create `.claude/zone-v2/` and write `.claude/zone-v2/manifest.json`:
   "project": null,
   "project_dir": null,
   "interactive": <true|false>,
-  "wiki_path": "<resolved wiki path>",
-  "notion": {
-    "enabled": <true|false>,
-    "spec_parent": "<spec_parent or null>",
-    "spec_page_id": null,
-    "db_id": "<db_id or null>"
-  },
+  "wiki_path": "<resolved>",
+  "notion": { "enabled": <bool>, "spec_parent": null, "spec_page_id": null, "db_id": null },
   "tasks": [],
   "current_task_index": 0,
   "retries": { "review_to_implement": 0, "test_to_implement": 0 },
@@ -112,174 +70,120 @@ Create `.claude/zone-v2/` and write `.claude/zone-v2/manifest.json`:
 }
 ```
 
-`manifest.tasks` entries are lightweight trackers: `{ "title": "...", "status": "pending|in_progress|done", "notion_page_id": null }`. The full task detail (files, done-when) lives in `.claude/zone-v2/plan.md`.
-
----
+`manifest.tasks` = `[{ "title", "status": "pending|in_progress|done", "notion_page_id": null }]`. Full task detail lives in `plan.md`.
 
 ## 4. Execute pipeline
 
-**The orchestrator owns `manifest.json` — it is the single writer.** Dispatched players write only their artifact files (`spec.md`, `plan.md`, `task_result.json`, `review_result.json`, `test_result.json`) and return a one-line summary. After each player returns, the orchestrator reads the artifact, updates the manifest, and decides the next move.
+**Orchestrator owns `manifest.json`.** Players write only their artifact files and return one line. After each returns: read artifact → update manifest (single Edit) → emit one status line → loop. No re-reads, no echo, no exploratory Bash between phases.
 
-### Dispatch contract (used by every dispatched phase)
-
-To dispatch a player, call the **Agent** tool with:
-- `subagent_type: "general-purpose"`
-- `model:` the tier from the table above
-- `description:` `"zone-v2 <phase>"`
-- `prompt:` the content of `players/<name>.md` (read it first) followed by a **Runtime context** block:
+**Dispatch contract** — Agent tool call per player:
+- `subagent_type: "general-purpose"`, `model: <M_PLAYER>`, `description: "zone-v2 <phase>"`
+- `prompt:` content of `players/<name>.md` (read first) + Runtime context:
 
 ```
 ## Runtime context
 - Working directory: <manifest.project_dir or cwd>
-- State directory: .claude/zone-v2/ (all paths below are relative to the working directory)
-- Read before acting: <phase-specific list>
-- Convention files: read CLAUDE.md / AGENTS.md at the repo root if present — they define layering, naming, and PR conventions.
-- (Go projects) Run `go` commands plainly (`go build ./...`, `go test ./...`). GOROOT is set per-project by `/zone-v2:setup` in `.claude/settings.local.json` `env` — this fixes the broken-GOROOT machine AND keeps commands matchable against the allowlist (a compound `... && go build` would bypass `Bash(go build *)`). ONLY if a `go` command fails with a GOROOT / `package unsafe is not in std` error, prepend this one-time guard and retry:
+- State directory: .claude/zone-v2/
+- Read before acting: <phase-specific>
+- Convention files: read CLAUDE.md / AGENTS.md if present.
+- Go projects: run `go` commands plainly. If GOROOT error occurs, prepend:
     if [ -z "$GOROOT" ] || [ ! -x "$GOROOT/bin/go" ]; then
       [ -d /opt/homebrew/Cellar/go ] && export GOROOT="$(ls -d /opt/homebrew/Cellar/go/*/libexec 2>/dev/null | sort -V | tail -n1)";
     fi
-- Notion enabled: <true|false>  (skip all Notion steps if false)
+- Notion enabled: <true|false>
 - Current task index: <n>  (implement only)
-- Current task block: <the full `### Task N` block copied verbatim from plan.md>  (implement, normal mode — SF works from this and must NOT re-read the whole plan.md)
-- Fix mode: <none | review | test>  (implement only — see below)
+- Current task block: <### Task N block verbatim>  (implement normal mode)
+- Fix mode: <none|review|test>  (implement only)
 
 ## Your deliverable
-- Write <result file> exactly per your output contract.
-- Do NOT modify .claude/zone-v2/manifest.json — the orchestrator owns it.
-- Return ONE line: your result status + a short summary.
+- Write <result file> per your output contract.
+- Do NOT modify manifest.json.
+- Return ONE line: status + short summary.
 ```
 
-### Autonomous loop (default: `manifest.interactive = false`)
-
-1. Note `manifest.status` as `prev_status`.
-2. Run the phase per its handler below (inline for `brief`, dispatch for the rest).
-3. Read the produced artifact, update the manifest accordingly.
-4. Apply stop conditions:
-   - A retry counter exceeds **5** → write the exhaustion report (below), **STOP**.
-   - `status = "done"` → print completion summary, **STOP**.
-   - A player returns `BLOCKED` or `NEEDS_CONTEXT` that the user must resolve → **STOP** (or ask, see handlers).
-5. Otherwise loop from step 1.
-
-`implement` stays `"implement"` across iterations (one SF dispatch per task, or per fix). Keep looping until it advances to `"review"`.
-
-**Orchestrator efficiency (keep your own context lean — across a full run you are the single biggest token line):** after a player returns, do exactly three things — read its one artifact, update the manifest in a single Edit, emit one status line. Don't re-read files you just wrote, don't echo artifact contents back into the conversation, don't run exploratory Bash between phases, and hold narration to one line per transition.
-
-### Interactive mode (`manifest.interactive = true`)
-
-Run only the current phase, then stop. The user re-runs `/zone-v2:orchestrator`.
-
----
+**Loop:** run phase → read artifact → update manifest → check stop conditions → repeat.
+Stop if: retry counter > 5 (exhaustion report) · `status="done"` (completion) · `BLOCKED`/`NEEDS_CONTEXT` user must resolve.
+Interactive mode: run one phase then stop; user re-runs.
 
 ## Phase handlers
 
-### status `brief` → Coach (INLINE — runs in this session)
+### `brief` → Coach (INLINE)
 
-Brief cannot be a subagent: Coach interviews the user, and dispatched agents can't run AskUserQuestion. So read `players/coach.md` and embody that persona **inline** here.
+Read `players/coach.md` and embody inline (can't be subagent — needs AskUserQuestion).
 
-**Jira path:**
-1. Fetch the ticket: if `mcp__atlassian-jira__getJiraIssue` is callable, call it with `ticket_id`; else AskUserQuestion: "Jira MCP isn't loaded — paste the ticket title + description."
-2. Load context yourself before asking anything (Coach's "discover before asking"): read `~/.claude/projects/-Users-Panca-Documents-MyBook/memory/MEMORY.md` if present, `<wiki_path>/index.md`, `git log --oneline -20`, `git branch -a`, repo layout (`find . -name "*.go" -o -name "*.ts" -o -name "*.py" | head -30`), and `CLAUDE.md`/`AGENTS.md`/`README.md`.
-3. Interview with AskUserQuestion (≤5), each question showing why you ask. Cover unstated acceptance criteria, affected services, edge cases, breaking-change handling, inflight dependencies.
+**Jira:** fetch ticket via `mcp__atlassian-jira__getJiraIssue` or ask user to paste. Load context first: `MEMORY.md`, wiki index, `git log --oneline -20`, `git branch -a`, repo layout, `CLAUDE.md`/`AGENTS.md`/`README.md`. Interview (≤5 AskUserQuestion), each showing why. Cover: unstated AC, affected services, edge cases, breaking changes, inflight deps.
 
-**Scratch path:**
-1. Brainstorm with AskUserQuestion until the idea is precise (problem, users, success, existing code, constraints).
-2. Ask the project name; set `manifest.project`.
-3. If `manifest.project_dir` is null: `mkdir -p "<cwd>/<project-name>"`, `git -C` init if needed, set `manifest.project_dir` to the absolute path, write manifest. Tell the user where implementation will live.
+**Scratch:** AskUserQuestion until idea is precise (problem, users, success, existing code, constraints). Ask project name → set `manifest.project`. If `project_dir` null: `mkdir -p <cwd>/<name>`, git init, set `manifest.project_dir`.
 
-**Both paths — write `.claude/zone-v2/brief.md`** in Coach's structure (Base Axioms / User Interfaces / Architectural Layers: Contract/Domain/Persistence / Out of scope).
+**Both:** write `brief.md` (Base Axioms / User Interfaces / Architectural Layers: Contract·Domain·Persistence / Out of scope). Set `status="spec"`, write manifest.
 
-Then set `manifest.status = "spec"`, write manifest.
-- If interactive: "Brief done. Run `/zone-v2:orchestrator` to continue to spec."
-- Else: "Brief done. Dispatching PG for spec + plan."
+### `spec` → dispatch PG (`M_PG`)
 
-### status `spec` → dispatch PG (`sonnet`)
+Read `players/pg.md`. Read before acting: `brief.md`. PG writes `spec.md` + `plan.md`.
 
-Read before acting: `.claude/zone-v2/brief.md`. Read `players/pg.md` and dispatch PG. PG writes `.claude/zone-v2/spec.md` and `.claude/zone-v2/plan.md`.
+After PG: extract `### Task N: <title>` headings from `plan.md` → set `manifest.tasks` (all pending, index=0). If Notion: create spec page, create task rows. Set `status="implement"`, write manifest.
 
-After PG returns:
-1. Read `.claude/zone-v2/plan.md`, extract its task list (each `### Task N: <title>` heading).
-2. Set `manifest.tasks = [{title, status:"pending", notion_page_id:null}, ...]` in plan order; `manifest.current_task_index = 0`.
-3. If `notion.enabled`: create the Notion spec page under `spec_parent` from `spec.md`, record `manifest.notion.spec_page_id`; create a To-Do row per task in `db_id`, record each `notion_page_id`.
-4. Set `manifest.status = "implement"`, write manifest.
-5. Tell user: "Spec + plan ready (N tasks). Dispatching SF." (interactive: "Run `/zone-v2:orchestrator` to start implementing.")
+### `implement` → dispatch SF (`M_SF` / `M_SF_ESCALATE` on escalation)
 
-### status `implement` → dispatch SF (`haiku`, or `sonnet` on fix)
+**Fix mode check:**
+- `review_result.json` with `status="CHANGES_NEEDED"` → fix=review (`M_SF`; `M_SF_ESCALATE` if retries≥2 or architectural)
+- `test_result.json` with `status` in {`FAILED`,`BLOCKED`} → fix=test (`M_SF`; `M_SF_ESCALATE` if retries≥2)
+- else → normal mode
 
-Decide the mode first:
-- If `.claude/zone-v2/review_result.json` exists with `status="CHANGES_NEEDED"` → **fix mode = review** (model `haiku`; use `sonnet` only if `retries.review_to_implement >= 2` or a finding is explicitly architectural).
-- Else if `.claude/zone-v2/test_result.json` exists with `status` in {`FAILED`,`BLOCKED`} → **fix mode = test** (model `haiku`; use `sonnet` only if `retries.test_to_implement >= 2`).
-- Else → **normal mode**:
-  - If `current_task_index >= len(tasks)` → set `status="review"`, write manifest, tell user "All tasks done. Dispatching Center for review." Stop this handler.
-  - Otherwise (a task remains):
-    - **If `manifest.branch` is null** (first task): create the feature branch *before* SF runs, so its per-task commits land there and `git diff main...HEAD` stays meaningful for review. `git checkout -b feat/<ticket_id-or-project>-<kebab-title>` from the current base (`main`/`master`). Set `manifest.branch`, write manifest.
-    - Mark `tasks[current_task_index].status="in_progress"` (and Notion row "In Progress" if enabled), write manifest.
+**Normal mode:**
+- `current_task_index >= len(tasks)` → set `status="review"`, write manifest, stop handler.
+- Else: if `branch` null → `git checkout -b feat/<ticket-or-project>-<kebab>`, set `manifest.branch`. Mark task `in_progress`, write manifest.
 
-Read `players/sf.md` and dispatch SF. In **normal mode**, embed the current task's `### Task N` block in the Runtime context (above) and tell SF to work from it — Read-before-acting is only `.claude/zone-v2/spec.md` (the requirements this task implements), NOT the whole `plan.md`. In **fix mode**, Read-before-acting is the relevant `review_result.json` / `test_result.json` plus the files they name. SF writes `.claude/zone-v2/task_result.json`.
+Read `players/sf.md`. Normal: embed `### Task N` block in context; read-before-acting = `spec.md` only. Fix: read-before-acting = result json + named files. SF writes `task_result.json`.
 
-After SF returns, read `task_result.json`:
-- **Normal mode:**
-  - `DONE` / `DONE_WITH_CONCERNS` → set `tasks[current_task_index].status="done"` (Notion "Done" if enabled), increment `current_task_index`. Stay `implement` (loop dispatches the next task, or advances to review when index passes the end).
-  - `NEEDS_CONTEXT` → AskUserQuestion with SF's `question`. Re-dispatch SF with the answer appended to context. (If non-interactive and unanswerable, STOP and report.)
-  - `BLOCKED` → STOP. Report SF's `blocker`. Stay `implement` for the user to resolve.
-- **Fix mode = review:** on `DONE`/`DONE_WITH_CONCERNS`, **rename `.claude/zone-v2/review_result.json` → `.claude/zone-v2/review_prev.json`** (preserve the findings so the re-review can be scoped), set `status="review"`, write manifest (re-review). On `BLOCKED`, STOP.
-- **Fix mode = test:** on `DONE`/`DONE_WITH_CONCERNS`, delete `.claude/zone-v2/test_result.json`, set `status="test"`, write manifest (re-test). On `BLOCKED`, STOP.
+**After SF:**
+- Normal `DONE`/`DONE_WITH_CONCERNS` → task `done`, increment index, stay `implement`.
+- `NEEDS_CONTEXT` → AskUserQuestion → re-dispatch SF. Unanswerable non-interactive → STOP.
+- `BLOCKED` → STOP, report blocker.
+- Fix=review `DONE` → rename `review_result.json`→`review_prev.json`, set `status="review"`.
+- Fix=test `DONE` → delete `test_result.json`, set `status="test"`.
 
-### status `review` → dispatch Center
+### `review` → dispatch Center (`M_CENTER`)
 
-**First pass** (`retries.review_to_implement == 0`) — model `sonnet`. Read before acting: `.claude/zone-v2/spec.md`, `.claude/zone-v2/plan.md`, plus the full diff (`git diff main...HEAD` || `git diff master...HEAD` || `git diff HEAD`).
+First pass (`retries=0`): read before acting = `spec.md`, `plan.md`, diff (`git diff main...HEAD` or `master...HEAD` or `HEAD`).
+Re-review (`retries≥1`): scoped — read `review_prev.json`; verify only prior blockers resolved + quick regression scan. Read before acting = `review_prev.json`, `spec.md`, diff.
 
-**Re-review** (`retries.review_to_implement >= 1`, i.e. a fix run just happened) — model `sonnet`, **scoped**. Tell Center to read `.claude/zone-v2/review_prev.json` (the prior findings) and verify *only* that each prior `blocker` is now resolved, plus a quick regression scan of the changed files — not a fresh full-spec review. Read before acting: `.claude/zone-v2/review_prev.json`, `.claude/zone-v2/spec.md`, and the diff.
+Read `players/center.md`. Center writes `review_result.json`.
 
-Read `players/center.md` and dispatch Center. Center writes `.claude/zone-v2/review_result.json`.
+- `APPROVED` → set `status="test"`.
+- `CHANGES_NEEDED` → increment `retries.review_to_implement`. >5 → exhaustion, STOP. Else set `status="implement"`.
 
-After Center returns:
-- `APPROVED` → set `status="test"`, write manifest. "Review passed. Dispatching PF for tests."
-- `CHANGES_NEEDED` → increment `manifest.retries.review_to_implement`.
-  - If `> 5` → exhaustion report, STOP.
-  - Else set `status="implement"`, write manifest (SF picks up fix mode = review, at `haiku` — `sonnet` only on the 2nd+ retry). "Review found N blocker(s) — routing back to SF (retry <k>/5)."
+### `test` → dispatch PF (`M_PF`)
 
-### status `test` → dispatch PF (`sonnet`)
+Read `players/pf.md`. Read before acting: `spec.md`, `plan.md`. PF writes `test_result.json`.
+If no suite: PF returns `BLOCKED("no suite found")` → AskUserQuestion: add tests or "skip tests". Don't advance without confirmation.
 
-Read before acting: `.claude/zone-v2/spec.md`, `.claude/zone-v2/plan.md`. Read `players/pf.md` and dispatch PF. PF writes `.claude/zone-v2/test_result.json`.
+- `PASSED` → set `status="ship"`.
+- `FAILED`/`BLOCKED` → increment `retries.test_to_implement`. >5 → exhaustion, STOP. Else set `status="implement"`.
 
-If no test suite exists, PF reports `BLOCKED` with "no suite found" rather than passing silently. The orchestrator then AskUserQuestion: add tests now, or type "skip tests" to proceed. Do not advance to ship without explicit confirmation.
+### `ship` → dispatch SG (`M_SG`)
 
-After PF returns:
-- `PASSED` → set `status="ship"`, write manifest. "Tests green. Dispatching SG to ship."
-- `FAILED` / `BLOCKED` (real impl bug) → increment `manifest.retries.test_to_implement`.
-  - If `> 5` → exhaustion report, STOP.
-  - Else set `status="implement"`, write manifest (SF picks up fix mode = test, at `haiku` — `sonnet` only on the 2nd+ retry). "Tests red — routing back to SF (retry <k>/5)."
+Precondition: `test_result.json` PASSED. If not → set `status="test"`, loop.
 
-### status `ship` → dispatch SG (`sonnet`)
+Read `players/sg.md`. Read before acting: `manifest.json`, `spec.md`, `brief.md`, `test_result.json`. Branch already exists; SF committed each task. SG: commit leftovers (no `git add -A`), push, open PR, sync Notion if enabled. Returns branch + PR URL.
 
-Precondition: `.claude/zone-v2/test_result.json` is `PASSED`. If not, set `status="test"` and loop instead of shipping.
+After SG: set `manifest.branch`, `manifest.pr_url`. Update wiki (`tickets/<id>.md` or `personal/<project>.md` + `index.md` + `log.md`); sync Notion if enabled. Set `status="done"`, write manifest.
 
-Read before acting: `.claude/zone-v2/manifest.json`, `.claude/zone-v2/spec.md`, `.claude/zone-v2/brief.md`, `.claude/zone-v2/test_result.json`. Read `players/sg.md` and dispatch SG. The feature branch already exists (`manifest.branch`, created at implement start, with SF's per-task commits on it). SG pushes that branch, commits any leftover, opens the PR, syncs Notion (if enabled), and returns the branch + PR URL in its summary. SG must **not** write the manifest.
-
-After SG returns:
-1. Set `manifest.branch`, `manifest.pr_url` from SG's summary.
-2. Update the local wiki at `manifest.wiki_path` (Jira → `tickets/<ticket_id>.md`; Scratch → `personal/<project>.md`), plus `index.md` and `log.md`; sync to Notion if enabled.
-3. Set `manifest.status = "done"`, write manifest.
-
-### Completion summary (`status = "done"`)
+### `done` — completion
 
 ```
 Zone complete. You're in the zone.
 
-PR:     <manifest.pr_url or commit hash>
-Branch: <manifest.branch>
-Spec:   <https://www.notion.so/<spec_page_id no-dashes> — omit if Notion disabled>
-Wiki:   <manifest.wiki_path>/...
+PR:     <pr_url or commit hash>
+Branch: <branch>
+Spec:   <notion url — omit if disabled>
+Wiki:   <wiki_path>/...
 ```
 
-### Exhaustion report (a retry counter exceeded 5)
+### Exhaustion (retry counter > 5)
 
 ```
 Zone stalled — <review|test> loop exhausted (5 retries).
-
-Last finding: <summary from review_result.json or test_result.json>
-State preserved in .claude/zone-v2/. Fix manually, then run /zone-v2:orchestrator to resume,
-or reset the relevant retry counter in manifest.json.
+Last finding: <summary>
+Fix manually, then re-run /zone-v2:orchestrator, or reset the retry counter in manifest.json.
 ```
-
----
