@@ -155,7 +155,7 @@ The review phase optionally prompts you to escalate to Opus for higher-stakes di
 
 ## Layout
 
-The marketplace manifest sits at the root; each plugin lives under `plugins/<name>/`. This README documents the stable `zone` (v1) plugin; `zone-v2` is the merged single-file successor — same seven phases collapsed into one skill, Notion opt-in (`--notion`), state in `.zone-v2/`, runnable side by side with v1.
+The marketplace manifest sits at the root; each plugin lives under `plugins/<name>/`. This README documents the stable `zone` (v1) plugin; `zone-v2` is the subagent-driven successor — one skill that orchestrates six player personas (coach/pg/sf/center/pf/sg), dispatching each phase except brief as an Agent with a per-tier model, state in `.zone-v2/`, runnable side by side with v1.
 
 ```
 open-skills/                             # repo root = the "open-skills" marketplace

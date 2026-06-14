@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Optional configuration for the Zone-v2 plugin — prompts for Notion DB/page IDs and the local MyBook wiki path, writes them to ~/.claude/plugins/data/zone-v2/config.json. Triggers when the user asks to "configure zone-v2", "set up zone-v2", "zone-v2 setup", or runs /zone-v2:setup. Only needed for --notion sync or a custom wiki path; /zone-v2 runs without it. Safe to re-run to update settings.
+description: Configuration for the Zone-v2 plugin — prompts for Notion DB/page IDs and the local MyBook wiki path (written to ~/.claude/plugins/data/zone-v2/config.json), and installs a per-project dev-command allowlist + GOROOT env into the current project's .claude/settings.local.json to cut permission prompts during runs. Triggers when the user asks to "configure zone-v2", "set up zone-v2", "zone-v2 setup", or runs /zone-v2:setup. Notion/wiki config is optional; run setup from a project root to install its allowlist. Safe to re-run to update settings.
 argument-hint: "[--show] [--reset]"
 allowed-tools: [Read, Write, Bash, AskUserQuestion]
 ---
@@ -95,15 +95,73 @@ Write `$CONFIG_PATH` with the following structure:
 
 Empty values are stored as empty strings, not omitted — keeps schema consistent.
 
-## 7. Confirm
+## 7. Install per-project dev allowlist (cut permission prompts)
+
+Zone-v2 dispatches many subagents that each cold-start and re-hit permission prompts on routine dev commands (`go build/test`, `git add/commit`, `mkdir`, `npm`/`next`) plus the orchestrator's constant `manifest.json` edits. This step writes a **curated allowlist** of safe commands + zone-v2 state files into the **current project's** `.claude/settings.local.json`, scoped to that project only (never global, never your work repos unless you run setup there).
+
+**Target = current working directory.** Run `/zone-v2:setup` from the project root you will zone in. Merge is idempotent (dedupes into existing `permissions.allow`); re-running is safe.
+
+Only **safe, local** commands are allowed. Outward/destructive ones stay gated and still prompt: `git push` / force-push, `gh pr create`, `git reset --hard`, `git remote set-url`, `rm`, `sudo`, web `curl`/`wget`, `brew`, `go install`, `npm publish`.
+
+Run this merge (also sets `env.GOROOT` to the newest Homebrew Go so `go` commands run plainly and stay matchable):
+
+```bash
+PROJECT_DIR="$(pwd)"
+SETTINGS_DIR="$PROJECT_DIR/.claude"
+SETTINGS_PATH="$SETTINGS_DIR/settings.local.json"
+mkdir -p "$SETTINGS_DIR"
+GOROOT_DETECTED="$(ls -d /opt/homebrew/Cellar/go/*/libexec 2>/dev/null | sort -V | tail -n1)"
+PROJECT_DIR="$PROJECT_DIR" GOROOT_DETECTED="$GOROOT_DETECTED" SETTINGS_PATH="$SETTINGS_PATH" python3 - <<'PY'
+import json, os
+path = os.environ["SETTINGS_PATH"]
+proj = os.environ["PROJECT_DIR"]
+goroot = os.environ.get("GOROOT_DETECTED", "").strip()
+try:
+    with open(path) as f:
+        data = json.load(f)
+except FileNotFoundError:
+    data = {}
+except json.JSONDecodeError:
+    raise SystemExit(f"Refusing to overwrite malformed {path} — fix the JSON first.")
+
+allow = data.setdefault("permissions", {}).setdefault("allow", [])
+rules = [
+    "Bash(go build *)", "Bash(go test *)", "Bash(go vet *)", "Bash(go mod *)",
+    "Bash(go run *)", "Bash(go fmt *)", "Bash(gofmt *)", "Bash(go env*)",
+    "Bash(go version*)", "Bash(golangci-lint run*)",
+    "Bash(git status*)", "Bash(git diff*)", "Bash(git add *)", "Bash(git commit *)",
+    "Bash(git log*)", "Bash(git show*)", "Bash(git branch*)", "Bash(git checkout *)",
+    "Bash(git switch *)", "Bash(git restore *)", "Bash(git stash*)",
+    "Bash(git rev-parse*)", "Bash(git init*)", "Bash(git worktree *)",
+    "Bash(mkdir -p *)", "Bash(ls *)",
+    "Bash(npm run *)", "Bash(npm test*)", "Bash(npm ci*)", "Bash(npm install*)",
+    "Bash(pnpm *)", "Bash(npx next *)", "Bash(npx tsc*)",
+    f"Write(/{proj}/.claude/zone-v2/**)", f"Edit(/{proj}/.claude/zone-v2/**)",
+]
+added = [r for r in rules if r not in allow]
+allow.extend(added)
+if goroot:
+    data.setdefault("env", {})["GOROOT"] = goroot
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+print(f"Wrote {path}")
+print(f"  +{len(added)} new allow rules ({len(allow)} total)")
+print(f"  env.GOROOT: {goroot or '(none — no /opt/homebrew/Cellar/go found, skipped)'}")
+PY
+```
+
+## 8. Confirm
 
 Tell the user:
 
 ```
 Zone-v2 config written to ~/.claude/plugins/data/zone-v2/config.json
 
-Notion sync: opt-in — pass --notion to /zone-v2 to use it (requires IDs above)
-Wiki path:   <wiki_path>
+Notion sync:  opt-in — pass --notion to /zone-v2 to use it (requires IDs above)
+Wiki path:    <wiki_path>
+Allowlist:    <N> rules + GOROOT env → <project>/.claude/settings.local.json
+              (safe dev commands auto-allowed; push/PR/rm/sudo still prompt)
 
 Run `/zone-v2 TICKET-XXX` (Jira) or `/zone-v2` (Scratch) to start.
 ```

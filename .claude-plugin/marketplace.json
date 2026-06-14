@@ -5,7 +5,7 @@
     "url": "https://github.com/panca1093"
   },
   "metadata": {
-    "description": "Open skills marketplace by Saifullah Panca — hosts the zone spec-driven development pipeline (v1 multi-file stable, v2 merged single-file). More plugins to come."
+    "description": "Open skills marketplace by Saifullah Panca — hosts the zone spec-driven development pipeline (v1 multi-file stable, v2 subagent-driven single-file). More plugins to come."
   },
   "plugins": [
     {
@@ -16,7 +16,7 @@
     {
       "name": "zone-v2",
       "source": "./plugins/zone-v2",
-      "description": "Spec-driven development pipeline (single-file) — /zone-v2 is the merged successor to zone v1: all seven phases in one skill, Notion opt-in (--notion), state in .zone-v2/. Runs side by side with v1."
+      "description": "Spec-driven development pipeline (subagent-driven, single-file) — /zone-v2 orchestrates six player personas (coach/pg/sf/center/pf/sg); brief runs inline, the rest dispatch as Agents with per-tier models. State in .zone-v2/, Notion opt-in (--notion). Runs side by side with v1."
     }
   ]
 }
