@@ -23,11 +23,11 @@ CONFIG_PATH="$HOME/.claude/plugins/data/zone-v2/config.json"
 [ -f "$CONFIG_PATH" ] && cat "$CONFIG_PATH" || echo "MISSING"
 ```
 
-**Models:**
+**Models (optional):**
 ```bash
 M_PG=$(jq -r '.models.pg // empty' "$CONFIG_PATH" 2>/dev/null)
 ```
-If empty → stop: "Player models not configured. Run /zone-v2:setup first."
+Empty = no override → omit `model` on dispatch, inherit the session model.
 
 **Notion:** `notion_enabled = notion_flag AND work/personal db_id non-empty`. If flag but no IDs: tell user to run `/zone-v2:setup`. `db_id` = work (jira) / personal (scratch); `spec_parent` = matching parent. Disabled: both null.
 
@@ -63,7 +63,7 @@ Read `players/coach.md` and embody inline (needs AskUserQuestion — can't be su
 ## 5. Spec + Plan — dispatch PG (`M_PG`)
 
 Read `players/pg.md`. Dispatch:
-- `subagent_type: "general-purpose"`, `model: M_PG`, `description: "zone-v2 coach-brief — PG"`
+- `subagent_type: "general-purpose"`, `description: "zone-v2 coach-brief — PG"`; pass `model: M_PG` only if non-empty.
 - Runtime context: working dir, state dir `.claude/zone-v2/`, read-before-acting: `brief.md` + `CLAUDE.md`/`AGENTS.md`.
 
 PG writes `spec.md` + `plan.md`.

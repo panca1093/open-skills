@@ -9,7 +9,7 @@ allowed-tools: [Read, Write, Bash, AskUserQuestion]
 
 Zone-v2 reads optional configuration from `~/.claude/plugins/data/zone-v2/config.json`. This skill creates or updates that file interactively.
 
-Config is **optional** in zone-v2: `/zone-v2` runs without it (Notion off, wiki defaults to `~/Documents/MyBook/wiki`). Run this only when you want `--notion` sync or a custom wiki path. Re-run any time to change settings.
+Config is **optional** in zone-v2: `/zone-v2` runs without it (Notion off, wiki defaults to `~/Documents/MyBook/wiki`, all players on the current session model). Run this only when you want `--notion` sync, a custom wiki path, or per-player model overrides. Re-run any time to change settings.
 
 ## Arguments
 
@@ -76,14 +76,19 @@ Then prompt for wiki path (separate AskUserQuestion):
 **Wiki path**
 "Where is your local wiki for ship-phase updates? Default: `~/Documents/MyBook/wiki`. Enter a path or pick Default."
 
-Then prompt for model configuration (separate AskUserQuestion per player):
+Then ask whether to configure per-player models (AskUserQuestion):
 
-**Model configuration** — ask free-text for each player. Use the model ID your LLM provider requires (e.g. `claude-sonnet-4-5`, `gpt-4o`, `gemini-1.5-pro`). Each player's model is stored independently so you can mix providers or tiers.
+**Per-player models?**
+"Configure a model per player? Models are **optional** — if you skip, every player runs on whatever model your Claude Code session is set to (`/model`). Configure only to tune cost/quality per phase (e.g. a cheaper SF for the implement loop)."
+- **(Recommended) Skip — use session model** — leave `models` empty; one model for everyone.
+- **Configure per player** — set a model id for each.
 
-Ask six questions (one AskUserQuestion each, free-text):
-1. **pg** — spec + plan (runs once; use a capable reasoning model)
-2. **sf** — implement loop (runs most frequently; consider a faster/cheaper model)
-3. **sf_escalate** — implement on retry (used when sf retries≥2 or fix is architectural; use a stronger model than sf)
+If **Skip**: omit the `models` block (or write `"models": {}`).
+
+If **Configure**: ask free-text for each player. Use the model id your LLM provider requires (e.g. `claude-sonnet-4-5`, `gpt-4o`, `gemini-1.5-pro`). Leave any one empty to let that player inherit the session model.
+1. **pg** — spec + plan (runs once; capable reasoning model)
+2. **sf** — implement loop (runs most; consider a faster/cheaper model)
+3. **sf_escalate** — implement on retry (sf retries≥2 or architectural fix; stronger than sf). Empty → falls back to `sf`.
 4. **center** — review
 5. **pf** — test
 6. **sg** — ship
@@ -104,18 +109,11 @@ Write `$CONFIG_PATH` with the following structure:
     "personal_parent_id": "<answer 4 or empty>"
   },
   "wiki_path": "<wiki path answer or default>",
-  "models": {
-    "pg": "<model-id>",
-    "sf": "<model-id>",
-    "sf_escalate": "<model-id>",
-    "center": "<model-id>",
-    "pf": "<model-id>",
-    "sg": "<model-id>"
-  }
+  "models": {}
 }
 ```
 
-Empty values are stored as empty strings, not omitted — keeps schema consistent.
+If the user configured per-player models, fill `models` with only the non-empty entries (e.g. `{ "sf": "...", "sf_escalate": "..." }`); otherwise leave it `{}`. Notion/wiki empty values are stored as empty strings — keeps schema consistent.
 
 ## 7. Install per-project dev allowlist (cut permission prompts)
 
@@ -184,8 +182,7 @@ Notion sync:  opt-in — pass --notion to /zone-v2 to use it (requires IDs above
 Wiki path:    <wiki_path>
 Allowlist:    <N> rules + GOROOT env → <project>/.claude/settings.local.json
               (safe dev commands auto-allowed; push/PR/rm/sudo still prompt)
-
-Models:       pg=<pg> sf=<sf> sf_escalate=<sf_escalate> center=<center> pf=<pf> sg=<sg>
+Models:       <"session model (no overrides)" if models empty, else the configured map>
 
 Run `/zone-v2:orchestrator TICKET-XXX` (Jira) or `/zone-v2:orchestrator` (Scratch) to start.
 ```

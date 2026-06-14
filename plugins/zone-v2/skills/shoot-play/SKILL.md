@@ -12,7 +12,7 @@ CONFIG_PATH="$HOME/.claude/plugins/data/zone-v2/config.json"
 M_CENTER=$(jq -r '.models.center // empty' "$CONFIG_PATH" 2>/dev/null)
 M_SG=$(jq -r '.models.sg // empty' "$CONFIG_PATH" 2>/dev/null)
 ```
-If any required var is empty → stop: "Player models not configured. Run /zone-v2:setup first."
+Models are optional. An empty `M_*` means "no override" — **omit the `model` field** when dispatching that player, so it inherits the session model.
 
 ## 1. Load manifest
 
@@ -27,7 +27,7 @@ Verify `test_result.json` exists with `status="PASSED"`. If not → stop: "test_
 ## 2. Mini-review — Center (light scope)
 
 Read `players/center.md`. Dispatch Center with constrained scope:
-- `subagent_type: "general-purpose"`, `model: M_CENTER`, `description: "zone-v2 shoot-play — mini-review"`
+- `subagent_type: "general-purpose"`, `description: "zone-v2 shoot-play — mini-review"`; pass `model: M_CENTER` only if non-empty.
 - Tell Center: **light scope only** — verify three things:
   1. All `manifest.tasks` have `status="done"`.
   2. `test_result.json` is `PASSED` with no unresolved `is_impl_bug`.
@@ -43,7 +43,7 @@ Center writes `review_result.json`.
 ## 3. Ship — SG (`M_SG`)
 
 Read `players/sg.md`. Dispatch:
-- `subagent_type: "general-purpose"`, `model: M_SG`, `description: "zone-v2 shoot-play — SG"`
+- `subagent_type: "general-purpose"`, `description: "zone-v2 shoot-play — SG"`; pass `model: M_SG` only if non-empty.
 - Read before acting: `manifest.json`, `spec.md`, `brief.md`, `test_result.json`.
 - Branch exists (`manifest.branch`); SF committed each task. SG must not create a new branch.
 

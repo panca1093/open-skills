@@ -13,9 +13,9 @@ M_SF=$(jq -r '.models.sf // empty' "$CONFIG_PATH" 2>/dev/null)
 M_SF_ESCALATE=$(jq -r '.models.sf_escalate // empty' "$CONFIG_PATH" 2>/dev/null)
 M_CENTER=$(jq -r '.models.center // empty' "$CONFIG_PATH" 2>/dev/null)
 M_PF=$(jq -r '.models.pf // empty' "$CONFIG_PATH" 2>/dev/null)
-[ -z "$M_SF_ESCALATE" ] && M_SF_ESCALATE="$M_CENTER"
+[ -z "$M_SF_ESCALATE" ] && M_SF_ESCALATE="$M_SF"
 ```
-If any required var is empty → stop: "Player models not configured. Run /zone-v2:setup first."
+Models are optional. An empty `M_*` means "no override" — **omit the `model` field** when dispatching that player, so it inherits the session model. No config = one model for everyone.
 
 ## 1. Load manifest
 
@@ -31,7 +31,7 @@ Manifest owns `manifest.json`. After each player: read artifact → update manif
 Stop if: retry counter >5 (exhaustion) · `status="ship"` (hand off) · `BLOCKED`/`NEEDS_CONTEXT`.
 
 **Dispatch contract** — Agent tool per player:
-`subagent_type: "general-purpose"`, `model: <M_PLAYER>`, `description: "zone-v2 3o3-play — <player>"`
+`subagent_type: "general-purpose"`, `description: "zone-v2 3o3-play — <player>"`; pass `model: <M_PLAYER>` only if non-empty, else omit to inherit the session model.
 
 Prompt = content of `players/<name>.md` + Runtime context:
 ```

@@ -27,7 +27,7 @@ CONFIG_PATH="$HOME/.claude/plugins/data/zone-v2/config.json"
 [ -f "$CONFIG_PATH" ] && cat "$CONFIG_PATH" || echo "MISSING"
 ```
 
-**Models** (required — run `/zone-v2:setup` to configure):
+**Models** (optional — omit to run every player on the current session model):
 ```bash
 M_PG=$(jq -r '.models.pg // empty' "$CONFIG_PATH" 2>/dev/null)
 M_SF=$(jq -r '.models.sf // empty' "$CONFIG_PATH" 2>/dev/null)
@@ -35,11 +35,11 @@ M_SF_ESCALATE=$(jq -r '.models.sf_escalate // empty' "$CONFIG_PATH" 2>/dev/null)
 M_CENTER=$(jq -r '.models.center // empty' "$CONFIG_PATH" 2>/dev/null)
 M_PF=$(jq -r '.models.pf // empty' "$CONFIG_PATH" 2>/dev/null)
 M_SG=$(jq -r '.models.sg // empty' "$CONFIG_PATH" 2>/dev/null)
-[ -z "$M_SF_ESCALATE" ] && M_SF_ESCALATE="$M_CENTER"
+[ -z "$M_SF_ESCALATE" ] && M_SF_ESCALATE="$M_SF"
 ```
-If any required var is empty → stop: "Player models not configured. Run /zone-v2:setup first."
+An empty `M_*` means "no override" — **omit the `model` field entirely** when dispatching that player, so it inherits the session model. Only pass `model` when the var is non-empty. No config = one model for everyone.
 
-SF escalation: use `M_SF_ESCALATE` when `retries≥2` or fix is architectural.
+SF escalation: use `M_SF_ESCALATE` when `retries≥2` or fix is architectural (no-op if it equals `M_SF`).
 
 **Notion:** `notion_enabled = notion_flag AND work/personal db_id non-empty`. If flag set but no IDs: tell user to run `/zone-v2:setup` or drop `--notion`.
 - Enabled: `db_id` = work_db_id (jira) / personal_db_id (scratch); `spec_parent` = matching parent ID.
@@ -77,7 +77,8 @@ WIKI_PATH=$(jq -r '.wiki_path // "~/Documents/MyBook/wiki"' "$CONFIG_PATH" 2>/de
 **Orchestrator owns `manifest.json`.** Players write only their artifact files and return one line. After each returns: read artifact → update manifest (single Edit) → emit one status line → loop. No re-reads, no echo, no exploratory Bash between phases.
 
 **Dispatch contract** — Agent tool call per player:
-- `subagent_type: "general-purpose"`, `model: <M_PLAYER>`, `description: "zone-v2 <phase>"`
+- `subagent_type: "general-purpose"`, `description: "zone-v2 <phase>"`
+- `model:` only if the player's `M_*` var is non-empty; omit otherwise to inherit the session model.
 - `prompt:` content of `players/<name>.md` (read first) + Runtime context:
 
 ```
