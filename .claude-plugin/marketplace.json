@@ -16,7 +16,7 @@
     {
       "name": "zone-v2",
       "source": "./plugins/zone-v2",
-      "description": "Spec-driven development pipeline (subagent-driven, single-file) — /zone-v2 orchestrates six player personas (coach/pg/sf/center/pf/sg); brief runs inline, the rest dispatch as Agents with per-tier models. State in .zone-v2/, Notion opt-in (--notion). Runs side by side with v1."
+      "description": "Spec-driven development pipeline (subagent-driven) — /zone-v2 orchestrates three sub-skills: coach-brief (brief/spec/plan), 3o3-play (implement/review/test), shoot-play (mini-review/ship). Run the full pipeline or each phase independently. Six player personas (players/) dispatched by sub-skills. State in .claude/zone-v2/, Notion opt-in (--notion). Runs side by side with v1."
     }
   ]
 }

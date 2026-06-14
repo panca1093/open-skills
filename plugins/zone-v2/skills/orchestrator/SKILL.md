@@ -1,11 +1,11 @@
 ---
-name: zone-v2
-description: Spec-driven development pipeline (subagent-driven). Use when the user types /zone-v2, asks to "run zone-v2", or wants an autonomous brief→spec→plan→implement→review→test→ship flow where each phase runs as a dispatched agent ("player"). One orchestrator skill defines who runs each phase; player personas live in players/. State flows through .claude/zone-v2/ files. Reads/writes .claude/zone-v2/manifest.json.
+name: orchestrator
+description: Spec-driven development pipeline (subagent-driven). Use when the user types /zone-v2:orchestrator, asks to "run zone-v2", or wants an autonomous brief→spec→plan→implement→review→test→ship flow where each phase runs as a dispatched agent ("player"). One orchestrator skill defines who runs each phase; player personas live in players/. State flows through .claude/zone-v2/ files. Reads/writes .claude/zone-v2/manifest.json.
 argument-hint: "[TICKET-ID] [--notion] [--interactive]"
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Agent]
 ---
 
-# /zone-v2 — Subagent-Driven Development Pipeline
+# /zone-v2:orchestrator — Subagent-Driven Development Pipeline
 
 One command, seven phases, autonomous by default. Each phase runs as a player on the court. The orchestrator (this file, running in the main session) drives the loop; every phase except `brief` is a **dispatched Agent** carrying that phase's persona. State flows through `.claude/zone-v2/` files only — subagents cold-start and never share memory.
 
@@ -32,7 +32,7 @@ Dispatched phases use `subagent_type: "general-purpose"` with the `model` above.
 - A Jira ticket ID matching `[A-Z]+-\d+` (e.g. `LOAN-1234`) → **Jira path**
 - Empty → **Scratch path** (personal/side project)
 - `--notion` — opt in to Notion sync (off by default; requires configured IDs)
-- `--interactive` — stop after each phase; user re-runs `/zone-v2` to continue (default: autonomous)
+- `--interactive` — stop after each phase; user re-runs `/zone-v2:orchestrator` to continue (default: autonomous)
 
 ---
 
@@ -166,7 +166,7 @@ To dispatch a player, call the **Agent** tool with:
 
 ### Interactive mode (`manifest.interactive = true`)
 
-Run only the current phase, then stop. The user re-runs `/zone-v2`.
+Run only the current phase, then stop. The user re-runs `/zone-v2:orchestrator`.
 
 ---
 
@@ -189,7 +189,7 @@ Brief cannot be a subagent: Coach interviews the user, and dispatched agents can
 **Both paths — write `.claude/zone-v2/brief.md`** in Coach's structure (Base Axioms / User Interfaces / Architectural Layers: Contract/Domain/Persistence / Out of scope).
 
 Then set `manifest.status = "spec"`, write manifest.
-- If interactive: "Brief done. Run `/zone-v2` to continue to spec."
+- If interactive: "Brief done. Run `/zone-v2:orchestrator` to continue to spec."
 - Else: "Brief done. Dispatching PG for spec + plan."
 
 ### status `spec` → dispatch PG (`sonnet`)
@@ -201,7 +201,7 @@ After PG returns:
 2. Set `manifest.tasks = [{title, status:"pending", notion_page_id:null}, ...]` in plan order; `manifest.current_task_index = 0`.
 3. If `notion.enabled`: create the Notion spec page under `spec_parent` from `spec.md`, record `manifest.notion.spec_page_id`; create a To-Do row per task in `db_id`, record each `notion_page_id`.
 4. Set `manifest.status = "implement"`, write manifest.
-5. Tell user: "Spec + plan ready (N tasks). Dispatching SF." (interactive: "Run `/zone-v2` to start implementing.")
+5. Tell user: "Spec + plan ready (N tasks). Dispatching SF." (interactive: "Run `/zone-v2:orchestrator` to start implementing.")
 
 ### status `implement` → dispatch SF (`haiku`, or `sonnet` on fix)
 
@@ -278,7 +278,7 @@ Wiki:   <manifest.wiki_path>/...
 Zone stalled — <review|test> loop exhausted (5 retries).
 
 Last finding: <summary from review_result.json or test_result.json>
-State preserved in .claude/zone-v2/. Fix manually, then run /zone-v2 to resume,
+State preserved in .claude/zone-v2/. Fix manually, then run /zone-v2:orchestrator to resume,
 or reset the relevant retry counter in manifest.json.
 ```
 
